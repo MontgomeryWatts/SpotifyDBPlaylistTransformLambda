@@ -5,14 +5,15 @@ import (
 	"strings"
 
 	"github.com/MontgomeryWatts/SpotifyDBPlaylistTransformLambda/internal/datalake/datalakelayer"
+	"github.com/MontgomeryWatts/SpotifyDBPlaylistTransformLambda/internal/db/mongodatabase"
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
 )
 
 func Handler(evt events.S3Event) {
-
 	datalake := datalakelayer.NewDatalake(datalakelayer.S3)
+	database := mongodatabase.NewMongoDatabase()
 
 	for _, record := range evt.Records {
 		s3Entity := record.S3
@@ -20,7 +21,11 @@ func Handler(evt events.S3Event) {
 		key := obj.Key
 		keyBytes := []byte(key)
 		if strings.HasPrefix(key, "artists") {
-			datalake.GetArtist(keyBytes)
+			artist := datalake.GetArtist(keyBytes)
+			err := database.InsertArtist(artist)
+			if err != nil {
+				log.Fatalf("error inserting artist into database: %v", err)
+			}
 		} else if strings.HasPrefix(key, "albums") {
 			datalake.GetAlbum(keyBytes)
 		} else {
