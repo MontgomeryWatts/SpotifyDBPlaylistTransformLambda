@@ -24,10 +24,14 @@ func Handler(evt events.S3Event) {
 			artist := datalake.GetArtist(keyBytes)
 			err := database.InsertArtist(artist)
 			if err != nil {
-				log.Fatalf("error inserting artist into database: %v", err)
+				log.Fatalf("Error inserting artist into database: %v", err)
 			}
 		} else if strings.HasPrefix(key, "albums") {
-			datalake.GetAlbum(keyBytes)
+			album := datalake.GetAlbum(keyBytes)
+			err := database.InsertTracks(album)
+			if err != nil {
+				log.Fatalf("Error inserting album into database: %v", err)
+			}
 		} else {
 			log.Fatalf("Unrecognized entity type encountered: %s", key)
 		}

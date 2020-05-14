@@ -1,23 +1,28 @@
 package mongodatabase
 
-import "github.com/zmb3/spotify"
-
-type MongoArtist struct {
-	URI    string   `bson:"_id"`
-	ID     string   `bson:"id"`
-	Name   string   `bson:"name"`
-	Genres []string `bson:"genres,omitempty"`
-}
+import (
+	"github.com/zmb3/spotify"
+)
 
 type MongoTrack struct {
-	ID string `bson:"_id"`
+	URI      string   `bson:"_id"`
+	Artists  []string `bson:"artists"`
+	Duration int      `bson:"duration_ms"`
 }
 
-func NewMongoArtist(artist spotify.FullArtist) MongoArtist {
-	return MongoArtist{
-		URI:    string(artist.URI),
-		ID:     string(artist.ID),
-		Name:   artist.Name,
-		Genres: artist.Genres,
+func NewMongoTracks(album spotify.FullAlbum) []interface{} {
+	tracks := make([]interface{}, len(album.Tracks.Tracks))
+	for i, track := range album.Tracks.Tracks {
+		t := MongoTrack{
+			URI:      string(track.URI),
+			Duration: track.Duration,
+		}
+		artists := make([]string, len(track.Artists))
+		for j, artist := range track.Artists {
+			artists[j] = string(artist.URI)
+		}
+		t.Artists = artists
+		tracks[i] = t
 	}
+	return tracks
 }

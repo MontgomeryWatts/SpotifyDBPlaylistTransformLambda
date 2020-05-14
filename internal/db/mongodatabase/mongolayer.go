@@ -6,6 +6,8 @@ import (
 	"os"
 	"time"
 
+	"go.mongodb.org/mongo-driver/bson"
+
 	"github.com/MontgomeryWatts/SpotifyDBPlaylistTransformLambda/internal/db"
 	"github.com/zmb3/spotify"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -13,8 +15,9 @@ import (
 )
 
 const (
-	database   = "music"
-	collection = "playlist"
+	database         = "music"
+	artistCollection = "artists"
+	trackCollection  = "tracks"
 )
 
 type MongoDatabase struct {
@@ -27,8 +30,11 @@ func NewMongoDatabase() db.Database {
 		log.Fatalf("MONGODB_URI not set in environment variables")
 	}
 
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
 	clientOptions := options.Client().ApplyURI(connectionString)
-	client, err := mongo.Connect(context.Background(), clientOptions)
+	client, err := mongo.Connect(ctx, clientOptions)
 	if err != nil {
 		log.Fatalf("Error while initializing MongoDB Client: %v", err)
 	}
@@ -39,14 +45,28 @@ func NewMongoDatabase() db.Database {
 }
 
 func (mongo *MongoDatabase) InsertArtist(artist spotify.FullArtist) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	mongoArtist := NewMongoArtist(artist)
-	collection := mongo.client.Database(database).Collection(collection)
-	_, err := collection.InsertOne(ctx, mongoArtist)
+	collection := mongo.client.Database(database).Collection(artistCollection)
+
+	filter := bson.D{
+		bson.E{Key: "_id", Value: string(artist.URI)}}
+	update := bson.D{
+		bson.E{Key: "$set", Value: bson.D{
+			bson.E{Key: "_id", Value: string(artist.URI)},
+			bson.E{Key: "name", Value: artist.Name},
+			bson.E{Key: "genres", Value: artist.Genres},
+		}}}
+	opts := options.Update().SetUpsert(true)
+	_, err := collection.UpdateOne(ctx, filter, update, opts)
 	return err
 }
 
 func (mongo *MongoDatabase) InsertTracks(album spotify.FullAlbum) error {
-	return nil
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	tracks := NewMongoTracks(album)
+	collection := mongo.client.Database(database).Collection(trackCollection)
+	_, err := collection.InsertMany(ctx, tracks)
+	return err
 }
