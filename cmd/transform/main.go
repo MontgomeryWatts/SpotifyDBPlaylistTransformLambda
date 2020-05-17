@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"log"
 	"strings"
 
@@ -11,13 +12,17 @@ import (
 	"github.com/aws/aws-lambda-go/lambda"
 )
 
-func Handler(evt events.S3Event) {
+func Handler(evt events.SQSEvent) {
 	datalake := datalakelayer.NewDatalake(datalakelayer.S3)
 	database := mongodatabase.NewMongoDatabase()
 
 	for _, record := range evt.Records {
-		s3Entity := record.S3
-		obj := &s3Entity.Object
+		s3Event := events.S3Event{}
+		err := json.Unmarshal([]byte(record.Body), &s3Event)
+		if err != nil {
+			log.Fatal("Malformed SQSEvent received")
+		}
+		obj := &s3Event.Records[0].S3.Object
 		key := obj.Key
 		keyBytes := []byte(key)
 		if strings.HasPrefix(key, "artists") {

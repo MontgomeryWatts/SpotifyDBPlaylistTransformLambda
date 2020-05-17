@@ -53,7 +53,6 @@ func (mongo *MongoDatabase) InsertArtist(artist spotify.FullArtist) error {
 		bson.E{Key: "_id", Value: string(artist.URI)}}
 	update := bson.D{
 		bson.E{Key: "$set", Value: bson.D{
-			bson.E{Key: "_id", Value: string(artist.URI)},
 			bson.E{Key: "name", Value: artist.Name},
 			bson.E{Key: "genres", Value: artist.Genres},
 		}}}
@@ -65,8 +64,26 @@ func (mongo *MongoDatabase) InsertArtist(artist spotify.FullArtist) error {
 func (mongo *MongoDatabase) InsertTracks(album spotify.FullAlbum) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	tracks := NewMongoTracks(album)
+
 	collection := mongo.client.Database(database).Collection(trackCollection)
-	_, err := collection.InsertMany(ctx, tracks)
-	return err
+	for _, t := range album.Tracks.Tracks {
+		artists := make([]string, len(t.Artists))
+		for i, a := range t.Artists {
+			artists[i] = string(a.URI)
+		}
+
+		filter := bson.D{
+			bson.E{Key: "_id", Value: string(t.URI)}}
+		update := bson.D{
+			bson.E{Key: "$set", Value: bson.D{
+				bson.E{Key: "artists", Value: artists},
+				bson.E{Key: "duration_ms", Value: t.Duration},
+			}}}
+		opts := options.Update().SetUpsert(true)
+		_, err := collection.UpdateOne(ctx, filter, update, opts)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
