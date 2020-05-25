@@ -78,6 +78,7 @@ func (mongo *MongoDatabase) InsertTracks(album spotify.FullAlbum) error {
 			bson.E{Key: "$set", Value: bson.D{
 				bson.E{Key: "artists", Value: artists},
 				bson.E{Key: "duration_ms", Value: t.Duration},
+				bson.E{Key: "explicit", Value: t.Explicit},
 			}}}
 		opts := options.Update().SetUpsert(true)
 		_, err := collection.UpdateOne(ctx, filter, update, opts)

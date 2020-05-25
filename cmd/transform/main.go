@@ -38,7 +38,7 @@ func Handler(evt events.SQSEvent) {
 				log.Fatalf("Error inserting album into database: %v", err)
 			}
 		} else {
-			log.Fatalf("Unrecognized entity type encountered: %s", key)
+			log.Printf("Unrecognized entity type encountered: %s", key)
 		}
 	}
 }
