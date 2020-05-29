@@ -24,6 +24,10 @@ type MongoDatabase struct {
 	client *mongo.Client
 }
 
+type TrackDocument struct {
+	URI string `bson:"_id"`
+}
+
 func NewMongoDatabase() db.Database {
 	connectionString, ok := os.LookupEnv("MONGODB_URI")
 	if !ok {
@@ -44,10 +48,10 @@ func NewMongoDatabase() db.Database {
 	}
 }
 
-func (mongo *MongoDatabase) InsertArtist(artist spotify.FullArtist) error {
+func (mg *MongoDatabase) InsertArtist(artist spotify.FullArtist) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	collection := mongo.client.Database(database).Collection(artistCollection)
+	collection := mg.client.Database(database).Collection(artistCollection)
 
 	filter := bson.D{
 		bson.E{Key: "_id", Value: string(artist.URI)}}
@@ -61,11 +65,11 @@ func (mongo *MongoDatabase) InsertArtist(artist spotify.FullArtist) error {
 	return err
 }
 
-func (mongo *MongoDatabase) InsertTracks(album spotify.FullAlbum) error {
+func (mg *MongoDatabase) InsertTracks(album spotify.FullAlbum) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	collection := mongo.client.Database(database).Collection(trackCollection)
+	collection := mg.client.Database(database).Collection(trackCollection)
 	for _, t := range album.Tracks.Tracks {
 		artists := make([]string, len(t.Artists))
 		for i, a := range t.Artists {
@@ -87,4 +91,38 @@ func (mongo *MongoDatabase) InsertTracks(album spotify.FullAlbum) error {
 		}
 	}
 	return nil
+}
+
+func (mg *MongoDatabase) GetPlaylistTracks() []string {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	sampleStage := bson.D{
+		bson.E{Key: "$sample", Value: bson.D{
+			bson.E{Key: "size", Value: 100},
+		}},
+	}
+	projectStage := bson.D{
+		bson.E{Key: "$project", Value: bson.D{
+			bson.E{Key: "_id", Value: 1},
+		}},
+	}
+
+	collection := mg.client.Database(database).Collection(trackCollection)
+	cursor, err := collection.Aggregate(ctx, mongo.Pipeline{sampleStage, projectStage})
+	if err != nil {
+		return make([]string, 0)
+	}
+
+	var trackDocs []TrackDocument
+	if err = cursor.All(ctx, &trackDocs); err != nil {
+		return make([]string, 0)
+	}
+
+	ids := make([]string, len(trackDocs))
+	for i, doc := range trackDocs {
+		ids[i] = doc.URI[14:]
+	}
+
+	return ids
 }
