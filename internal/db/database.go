@@ -6,6 +6,5 @@ import (
 
 type Database interface {
 	InsertArtist(spotify.FullArtist) error
-	InsertTracks(spotify.FullAlbum) error
-	GetPlaylistTracks() []string
+	InsertAlbum(spotify.FullAlbum) error
 }

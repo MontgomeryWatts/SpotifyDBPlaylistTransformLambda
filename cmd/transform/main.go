@@ -33,7 +33,7 @@ func Handler(evt events.SQSEvent) {
 			}
 		} else if strings.HasPrefix(key, "albums") {
 			album := datalake.GetAlbum(keyBytes)
-			err := database.InsertTracks(album)
+			err := database.InsertAlbum(album)
 			if err != nil {
 				log.Fatalf("Error inserting album into database: %v", err)
 			}

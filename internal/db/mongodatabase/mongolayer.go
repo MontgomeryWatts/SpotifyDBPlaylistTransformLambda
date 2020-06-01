@@ -17,15 +17,11 @@ import (
 const (
 	database         = "music"
 	artistCollection = "artists"
-	trackCollection  = "tracks"
+	albumCollection  = "albums"
 )
 
 type MongoDatabase struct {
 	client *mongo.Client
-}
-
-type TrackDocument struct {
-	URI string `bson:"_id"`
 }
 
 func NewMongoDatabase() db.Database {
@@ -54,10 +50,12 @@ func (mg *MongoDatabase) InsertArtist(artist spotify.FullArtist) error {
 	collection := mg.client.Database(database).Collection(artistCollection)
 
 	filter := bson.D{
-		bson.E{Key: "_id", Value: string(artist.URI)}}
+		bson.E{Key: "_id", Value: string(artist.ID)}}
 	update := bson.D{
 		bson.E{Key: "$set", Value: bson.D{
 			bson.E{Key: "name", Value: artist.Name},
+			bson.E{Key: "image", Value: artist.Images[0].URL},
+			bson.E{Key: "uri", Value: string(artist.URI)},
 			bson.E{Key: "genres", Value: artist.Genres},
 		}}}
 	opts := options.Update().SetUpsert(true)
@@ -65,64 +63,31 @@ func (mg *MongoDatabase) InsertArtist(artist spotify.FullArtist) error {
 	return err
 }
 
-func (mg *MongoDatabase) InsertTracks(album spotify.FullAlbum) error {
+func (mg *MongoDatabase) InsertAlbum(album spotify.FullAlbum) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	collection := mg.client.Database(database).Collection(trackCollection)
-	for _, t := range album.Tracks.Tracks {
-		artists := make([]string, len(t.Artists))
-		for i, a := range t.Artists {
-			artists[i] = string(a.URI)
-		}
+	collection := mg.client.Database(database).Collection(albumCollection)
 
-		filter := bson.D{
-			bson.E{Key: "_id", Value: string(t.URI)}}
-		update := bson.D{
-			bson.E{Key: "$set", Value: bson.D{
-				bson.E{Key: "artists", Value: artists},
-				bson.E{Key: "duration_ms", Value: t.Duration},
-				bson.E{Key: "explicit", Value: t.Explicit},
-			}}}
-		opts := options.Update().SetUpsert(true)
-		_, err := collection.UpdateOne(ctx, filter, update, opts)
-		if err != nil {
-			return err
+	artists := make([]bson.D, len(album.Artists))
+	for index, artist := range album.Artists {
+		artists[index] = bson.D{
+			bson.E{Key: "name", Value: artist.Name},
+			bson.E{Key: "uri", Value: artist.URI},
 		}
 	}
-	return nil
-}
 
-func (mg *MongoDatabase) GetPlaylistTracks() []string {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
+	filter := bson.D{
+		bson.E{Key: "_id", Value: string(album.ID)}}
+	update := bson.D{
+		bson.E{Key: "$set", Value: bson.D{
+			bson.E{Key: "name", Value: album.Name},
+			bson.E{Key: "image", Value: album.Images[0].URL},
+			bson.E{Key: "uri", Value: album.URI},
+			bson.E{Key: "artists", Value: artists},
+		}}}
 
-	sampleStage := bson.D{
-		bson.E{Key: "$sample", Value: bson.D{
-			bson.E{Key: "size", Value: 100},
-		}},
-	}
-	projectStage := bson.D{
-		bson.E{Key: "$project", Value: bson.D{
-			bson.E{Key: "_id", Value: 1},
-		}},
-	}
-
-	collection := mg.client.Database(database).Collection(trackCollection)
-	cursor, err := collection.Aggregate(ctx, mongo.Pipeline{sampleStage, projectStage})
-	if err != nil {
-		return make([]string, 0)
-	}
-
-	var trackDocs []TrackDocument
-	if err = cursor.All(ctx, &trackDocs); err != nil {
-		return make([]string, 0)
-	}
-
-	ids := make([]string, len(trackDocs))
-	for i, doc := range trackDocs {
-		ids[i] = doc.URI[14:]
-	}
-
-	return ids
+	opts := options.Update().SetUpsert(true)
+	_, err := collection.UpdateOne(ctx, filter, update, opts)
+	return err
 }
